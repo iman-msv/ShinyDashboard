@@ -1,0 +1,55 @@
+---
+title: "Walmart Sales Dashboard"
+author: "Iman Mousavi"
+format: html
+server: shiny
+engine: knitr
+---
+
+## Quarto
+
+
+```{r Packages}
+if (!require(pacman)) {
+  install.packages("pacman")
+  library(pacman)
+}
+
+p_load(shiny, shinydashboard, readr, dplyr, ggplot2, stringr, magrittr,
+       lubridate)
+```
+
+```{r Importing Data}
+walmart <- read_csv("Walmart_Store_sales.csv")
+```
+
+```{r Cleaning}
+names(walmart) %<>%
+  str_to_lower()
+
+walmart %<>%
+  mutate(date = dmy(date),
+         store = as.factor(store),
+         holiday_flag = as.factor(holiday_flag))
+```
+
+```{r User Interface}
+sliderInput("date", "Starting Date:", 
+            min = min(walmart$date), max = max(walmart$date), 
+            value = median(walmart$date))
+```
+
+```{r}
+plotOutput("walmart_sales_plot")
+```
+
+```{r Server}
+#| context: server
+output$walmart_sales_plot <- renderPlot({
+  walmart |> 
+    filter(date > input$date) |> 
+    ggplot(aes(x = date, y = weekly_sales)) + 
+    geom_line() + 
+    geom_point()
+})
+```
