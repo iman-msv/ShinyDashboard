@@ -3,8 +3,10 @@ if (!require(pacman)) {
   library(pacman)
 }
 
-p_load(shiny, shinydashboard, readr, dplyr, ggplot2, plotly, stringr, magrittr,
-       lubridate)
+p_load(shiny, shinydashboard, readr, dplyr, ggplot2, plotly, 
+       stringr, magrittr, lubridate, RColorBrewer)
+
+colors <- grDevices::colors()[grep('gr(a|e)y', grDevices::colors(), invert = T)]
 
 walmart <- read_csv("Walmart_Store_sales.csv")
 walmart
@@ -16,8 +18,15 @@ names(walmart) %<>%
 walmart %<>%
   mutate(date = dmy(date),
          store = as.factor(store),
-         holiday_flag = as.factor(holiday_flag),
          weekly_sales = weekly_sales / 1e3)
+
+walmart_average_stores <- walmart |> 
+  summarise(weekly_sales_average = mean(weekly_sales),
+            holiday_flag = mean(holiday_flag),
+            temperature = mean(temperature),
+            fuel_price = mean(fuel_price),
+            cpi = mean(cpi),
+            .by = c(date))
 
 # Dashboard
 # Header, Sidebar, and Body
@@ -38,10 +47,14 @@ body <- dashboardBody(
       "dashboard",
       fluidRow(
         valueBoxOutput("mean_sales"),
-        valueBoxOutput("num_weeks")
+        valueBoxOutput("num_weeks"),
+        valueBoxOutput("stores")
       ),
       fluidRow(
-        plotlyOutput("sales_over_weeks_store1")
+        plotlyOutput("sales_over_weeks")
+      ),
+      fluidRow(
+        plotlyOutput("sales_vs_temp")
       )
     ),
     tabItem(
@@ -82,18 +95,35 @@ server <- function(input, output) {
     )
   })
   
-  output$sales_over_weeks_store1 <- renderPlotly({
-    sales_store1_plot <- walmart |> 
-      ggplot(aes(date, weekly_sales, group = store)) + 
-      geom_line(aes(color = store), alpha = 0.8) + 
-      labs(
-        x = "Date", 
-        y = "Weekly Sales (thousand $)", 
-        title = "Weekly Sales over Time in Store 1"
-      ) + 
-      theme(legend.position = "none")
-      
-      ggplotly(sales_store1_plot)
+  output$stores <- renderValueBox({
+    num_unique_store <- length(unique(walmart$store))
+    valueBox(
+      value = num_unique_store,
+      subtitle = "Stores",
+      icon = icon("store"),
+      color = "maroon"
+    )
+  })
+  
+  output$sales_over_weeks <- renderPlotly({
+    walmart_average_stores |> 
+      plot_ly(x = ~date, y = ~weekly_sales_average) |> 
+      add_lines() |> 
+      layout(xaxis = list(title = "Date"),
+             yaxis = list(title = "Weekly Sales (thousand $)"),
+             title = "Average of Weekly Sales Across Stores over Time",
+             height = 300)
+  })
+  
+  output$sales_vs_temp <- renderPlotly({
+    walmart_average_stores |> 
+      plot_ly(x = ~temperature, y = ~weekly_sales_average) |> 
+      add_markers() |> 
+      layout(xaxis = list(title = "Temperature"),
+             yaxis = list(title = "Weekly Sales (thousand $)"),
+             title = "Average of Weekly Sales vs. Temperature",
+             height = 300,
+             width = 600)
   })
 }
 
